@@ -4,96 +4,84 @@ public class PlayerController : MonoBehaviour
 {
     [Header("Movimiento")]
     public float moveSpeed = 5f;
-    public float jumpForce = 10f;
     private Rigidbody2D rb;
-    private bool isGrounded;
+    private Vector2 movement;
 
     [Header("Disparo")]
     public GameObject bulletPrefab;
-    public Transform gunPoint;
-    public float bulletSpeed = 12f;
+    public Transform firePoint;
+    public float bulletSpeed = 10f;
     public float fireRate = 0.5f;
-    private float nextFireTime = 0f;
+    private float nextFireTime;
 
-    [Header("Vida")]
+    [Header("Vida y Mana")]
     public int maxHealth = 5;
-    private int currentHealth;
-    private bool isInvincible = false;
-    public float invincibilityDuration = 1f;
+    public int currentHealth;
 
-    [Header("Suelo")]
-    public Transform groundCheck;
-    public float groundRadius = 0.2f;
-    public LayerMask whatIsGround;
+    public int maxMana = 10;
+    public int currentMana;
+    public int manaCostPerShot = 1;
 
-    private void Start()
+    void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         currentHealth = maxHealth;
+        currentMana = maxMana;
     }
 
-    private void Update()
+    void Update()
     {
-        Mover();
-        Saltar();
-        Disparar();
-    }
+        // Movimiento
+        movement.x = Input.GetAxisRaw("Horizontal");
+        movement.y = Input.GetAxisRaw("Vertical");
 
-    void Mover()
-    {
-        float inputX = Input.GetAxisRaw("Horizontal");
-        rb.linearVelocity = new Vector2(inputX * moveSpeed, rb.linearVelocity.y);
-
-        if (inputX != 0)
-            transform.localScale = new Vector3(Mathf.Sign(inputX), 1, 1);
-    }
-
-    void Saltar()
-    {
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundRadius, whatIsGround);
-
-        if (Input.GetButtonDown("Jump") && isGrounded)
+        // Disparo
+        if (Input.GetButton("Fire1") && Time.time >= nextFireTime && currentMana >= manaCostPerShot)
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-            Debug.Log("Tiro: ¡Wow, qué salto más profesional... para alguien con osteoporosis!");
+            Shoot();
         }
     }
 
-    void Disparar()
+    void FixedUpdate()
     {
-        if (Input.GetButton("Fire1") && Time.time > nextFireTime)
-        {
-            nextFireTime = Time.time + fireRate;
+        rb.linearVelocity = movement.normalized * moveSpeed;
+    }
 
-            GameObject bullet = Instantiate(bulletPrefab, gunPoint.position, Quaternion.identity);
-            bullet.GetComponent<Rigidbody2D>().linearVelocity = new Vector2(transform.localScale.x * bulletSpeed, 0);
+    void Shoot()
+    {
+        nextFireTime = Time.time + fireRate;
+        currentMana -= manaCostPerShot;
 
-            Debug.Log("Tiro: ¡Pew pew! ¿Ya te crees un héroe o qué?");
-        }
+        GameObject bullet = Instantiate(bulletPrefab, firePoint.position, Quaternion.identity);
+        Rigidbody2D bulletRb = bullet.GetComponent<Rigidbody2D>();
+
+        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 direction = ((Vector2)mousePos - (Vector2)transform.position).normalized;
+
+        bulletRb.linearVelocity = direction * bulletSpeed;
     }
 
     public void TakeDamage(int damage)
     {
-        if (isInvincible) return;
-
         currentHealth -= damage;
-        Debug.Log("Tiro: Te pegaron otra vez... increíble talento para recibir golpes.");
-
         if (currentHealth <= 0)
         {
-            Debug.Log("Tiro: ¡Y así termina tu carrera estelar, con cero estrellas!");
-            Destroy(gameObject);
-        }
-        else
-        {
-            StartCoroutine(BecomeTemporarilyInvincible());
+            Die();
         }
     }
 
-    System.Collections.IEnumerator BecomeTemporarilyInvincible()
+    void Die()
     {
-        isInvincible = true;
-        yield return new WaitForSeconds(invincibilityDuration);
-        isInvincible = false;
+        Destroy(gameObject);
     }
+
+    public void SavePosition()
+    {
+        PlayerPrefs.SetFloat("PlayerX", transform.position.x);
+        PlayerPrefs.SetFloat("PlayerY", transform.position.y);
+        PlayerPrefs.Save();
+    }
+
+    public GameManager gameManager;
+
 }
